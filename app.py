@@ -78,7 +78,8 @@ if "participantes" not in st.session_state:
 # Título do App
 st.title("🤠 Trilha da Roça - A Fazenda")
 st.markdown(
-    "Painel de gerenciamento e visualização da linha do tempo dos peões."
+    "Painel dinâmico para gerenciamento da linha do tempo e funções dos"
+    " peões."
 )
 
 # --- PAINEL LATERAL (CONTROLES) ---
@@ -90,29 +91,30 @@ if aba == "Cadastrar / Editar":
 
   with st.sidebar.form("form_cadastro"):
     nome = st.text_input("Nome do Participante")
-    status = st.selectbox(
-        "Status Atual", ["No Jogo", "Eliminado", "Finalista", "Expulso"]
+
+    # Opção dinâmica para o Redator digitar o Status livremente
+    status = st.text_input(
+        "Status do Participante",
+        value="No Jogo",
+        placeholder="Ex: No Jogo, Eliminado, Finalista, Fazendeiro da Semana...",
     )
+
     foto = st.text_input("URL da Foto do Peão")
 
     st.markdown("---")
     semana = st.slider("Semana", 1, 14, 1)
-    tipo_acao = st.selectbox(
-        "Tipo de Ação (Selo)",
-        [
-            "Chapéu do Fazendeiro",
-            "Trato dos Bichos",
-            "Limpeza",
-            "Horta",
-            "Na Roça",
-            "Outro",
-        ],
+
+    # Mudança de Tipo de Ação para 'Função' com campo livre/personalizável
+    funcao = st.text_input(
+        "Função / Tarefa (Selo)",
+        placeholder="Ex: Chapéu do Fazendeiro, Trato dos Bichos, Limpeza...",
     )
+
     descricao = st.text_area("Descrição do Acontecimento")
 
     enviar = st.form_submit_button("Salvar na Trilha")
 
-    if enviar and nome:
+    if enviar and nome and funcao:
       lista = st.session_state["participantes"]
       encontrado = False
 
@@ -123,7 +125,7 @@ if aba == "Cadastrar / Editar":
             p["foto"] = foto
           if "semanas" not in p:
             p["semanas"] = {}
-          p["semanas"][str(semana)] = [tipo_acao, descricao]
+          p["semanas"][str(semana)] = [funcao, descricao]
           encontrado = True
           break
 
@@ -136,7 +138,7 @@ if aba == "Cadastrar / Editar":
                 if foto
                 else "https://via.placeholder.com/150"
             ),
-            "semanas": {str(semana): [tipo_acao, descricao]},
+            "semanas": {str(semana): [funcao, descricao]},
         }
         lista.append(novo_p)
 
@@ -157,24 +159,35 @@ if not participantes:
   )
 
 
-def get_icone(tipo):
-  t = tipo.lower()
+# Função inteligente para associar ícones com base no texto livre da Função digitada pelo redator
+def get_icone(texto_funcao):
+  t = texto_funcao.lower()
   if "fazendeiro" in t or "chapéu" in t:
     return "🤠"
-  elif "bichos" in t:
+  elif (
+      "bichos" in t
+      | "animal" in t
+      | "vaca" in t
+      | "cavalo" in t
+      | "ave" in t
+      | "porco" in t
+  ):
     return "🐄"
-  elif "limpeza" in t:
+  elif "limpeza" in t or "limpar" in t or "lixo" in t:
     return "🧹"
-  elif "horta" in t:
+  elif "horta" in t or "planta" in t or "cultivo" in t:
     return "🌱"
-  elif "roça" in t:
+  elif "roça" in t or "indicação" in t or "votação" in t:
     return "🔥"
+  elif "festa" in t or "vip" in t:
+    return "🎉"
   return "⭐"
 
 
 for p in participantes:
+  status_texto = p.get("status", "No Jogo")
   is_no_jogo = any(
-      s in p["status"].lower() for s in ["no jogo", "campeão", "finalista"]
+      s in status_texto.lower() for s in ["no jogo", "campeão", "finalista"]
   )
   badge_class = "status-badge no-jogo" if is_no_jogo else "status-badge"
 
@@ -185,7 +198,7 @@ for p in participantes:
             <img src="{p.get('foto', '')}" style="width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 3px solid #00ad9d;">
             <div>
                 <h3 style="margin: 0 0 5px 0; color: #ffffff;">{p['nome']}</h3>
-                <span class="{badge_class}">{p['status']}</span>
+                <span class="{badge_class}">{status_texto}</span>
             </div>
         </div>
     </div>
@@ -197,16 +210,16 @@ for p in participantes:
   if semanas:
     cols = st.columns(min(len(semanas), 4))
     idx = 0
-    for semana_num, (tipo_acao, desc) in sorted(
+    for semana_num, (func_nome, desc) in sorted(
         semanas.items(), key=lambda x: int(x[0])
     ):
-      icone = get_icone(tipo_acao)
+      icone = get_icone(func_nome)
       with cols[idx % len(cols)]:
         st.markdown(
             f"""
                 <div style="background: #212e2c; border: 1px solid #283735; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
                     <div style="font-size: 10px; font-weight: bold; color: #DB8645; text-transform: uppercase;">Semana {semana_num}</div>
-                    <div style="margin: 4px 0;"><span class="marco-selo">{icone} {tipo_acao}</span></div>
+                    <div style="margin: 4px 0;"><span class="marco-selo">{icone} {func_nome}</span></div>
                     <div style="font-size: 12px; color: #d1c2a5; margin-top: 4px;">{desc}</div>
                 </div>
                 """,

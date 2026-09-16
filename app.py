@@ -104,7 +104,7 @@ aba = st.sidebar.radio(
     ["Visualizar Trilha", "Cadastrar / Editar Peão", "⚙️ Configurações"],
 )
 
-# 1. ABA DE CONFIGURAÇÕES (ADMIN COM EDIÇÃO E EXCLUSÃO)
+# 1. ABA DE CONFIGURAÇÕES (ADMIN COM EDIÇÃO INTELIGENTE E EXCLUSÃO)
 if aba == "⚙️ Configurações":
   st.subheader("⚙️ Gerenciamento de Status e Funções")
 
@@ -131,12 +131,21 @@ if aba == "⚙️ Configurações":
       c1, c2, c3 = st.columns([3, 1, 1])
       with c1:
         edit_status = st.text_input(
-            f"Editar Status {i}", value=s_atual, key=f"edit_status_{i}", label_visibility="collapsed"
+            f"Editar Status {i}",
+            value=s_atual,
+            key=f"edit_status_{i}",
+            label_visibility="collapsed",
         )
       with c2:
-        if st.button("💾 Salvar", key=f"save_status_{i}"):
-          if edit_status and edit_status != s_atual:
-            st.session_state["config_status"][i] = edit_status
+        # O botão só fica habilitado se o texto digitado for diferente do valor original salvo
+        is_changed_status = edit_status.strip() != s_atual
+        if st.button(
+            "💾 Salvar",
+            key=f"save_status_{i}",
+            disabled=not is_changed_status,
+        ):
+          if edit_status:
+            st.session_state["config_status"][i] = edit_status.strip()
             salvar_dados(
                 "config_status.json", st.session_state["config_status"]
             )
@@ -175,12 +184,21 @@ if aba == "⚙️ Configurações":
       cf1, cf2, cf3 = st.columns([3, 1, 1])
       with cf1:
         edit_funcao = st.text_input(
-            f"Editar Função {j}", value=f_atual, key=f"edit_funcao_{j}", label_visibility="collapsed"
+            f"Editar Função {j}",
+            value=f_atual,
+            key=f"edit_funcao_{j}",
+            label_visibility="collapsed",
         )
       with cf2:
-        if st.button("💾 Salvar", key=f"save_funcao_{j}"):
-          if edit_funcao and edit_funcao != f_atual:
-            st.session_state["config_funcoes"][j] = edit_funcao
+        # O botão só fica habilitado se o texto digitado for diferente do valor original salvo
+        is_changed_funcao = edit_funcao.strip() != f_atual
+        if st.button(
+            "💾 Salvar",
+            key=f"save_funcao_{j}",
+            disabled=not is_changed_funcao,
+        ):
+          if edit_funcao:
+            st.session_state["config_funcoes"][j] = edit_funcao.strip()
             salvar_dados(
                 "config_funcoes.json", st.session_state["config_funcoes"]
             )

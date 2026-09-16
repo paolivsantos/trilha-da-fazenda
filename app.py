@@ -57,7 +57,6 @@ st.markdown(
 
 # Arquivos JSON locais para persistência
 ARQUIVO_DADOS = "dados_trilha.json"
-ARQUIVO_CONFIG = "config_trilha.json"
 
 
 def carregar_dados(arquivo, padrao):
@@ -105,35 +104,99 @@ aba = st.sidebar.radio(
     ["Visualizar Trilha", "Cadastrar / Editar Peão", "⚙️ Configurações"],
 )
 
-# 1. ABA DE CONFIGURAÇÕES (ADMIN)
+# 1. ABA DE CONFIGURAÇÕES (ADMIN COM EDIÇÃO E EXCLUSÃO)
 if aba == "⚙️ Configurações":
-  st.sidebar.subheader("Gerenciar Opções do Sistema")
+  st.subheader("⚙️ Gerenciamento de Status e Funções")
 
-  # Gerenciar Status
-  st.subheader("Gerenciamento de Status Permitidos")
-  novo_status = st.text_input("Adicionar Novo Status")
-  if st.button("Cadastrar Status"):
-    if novo_status and novo_status not in st.session_state["config_status"]:
-      st.session_state["config_status"].append(novo_status)
-      salvar_dados("config_status.json", st.session_state["config_status"])
-      st.success(f"Status '{novo_status}' adicionado com sucesso!")
+  col_cfg1, col_cfg2 = st.columns(2)
 
-  st.write("Status atuais cadastrados:")
-  st.write(st.session_state["config_status"])
+  # --- GERENCIAR STATUS ---
+  with col_cfg1:
+    st.markdown("### 📊 Status Permitidos")
+    novo_status = st.text_input("Novo Status", key="input_novo_status")
+    if st.button("Adicionar Status"):
+      if (
+          novo_status
+          and novo_status not in st.session_state["config_status"]
+      ):
+        st.session_state["config_status"].append(novo_status)
+        salvar_dados("config_status.json", st.session_state["config_status"])
+        st.success(f"Status '{novo_status}' adicionado!")
+        st.rerun()
 
-  st.markdown("---")
+    st.markdown("---")
+    st.write("Editar ou remover status existentes:")
 
-  # Gerenciar Funções / Selos
-  st.subheader("Gerenciamento de Funções / Selos")
-  nova_funcao = st.text_input("Adicionar Nova Função")
-  if st.button("Cadastrar Função"):
-    if nova_funcao and nova_funcao not in st.session_state["config_funcoes"]:
-      st.session_state["config_funcoes"].append(nova_funcao)
-      salvar_dados("config_funcoes.json", st.session_state["config_funcoes"])
-      st.success(f"Função '{nova_funcao}' adicionada com sucesso!")
+    for i, s_atual in enumerate(st.session_state["config_status"]):
+      c1, c2, c3 = st.columns([3, 1, 1])
+      with c1:
+        edit_status = st.text_input(
+            f"Editar Status {i}", value=s_atual, key=f"edit_status_{i}", label_visibility="collapsed"
+        )
+      with c2:
+        if st.button("💾 Salvar", key=f"save_status_{i}"):
+          if edit_status and edit_status != s_atual:
+            st.session_state["config_status"][i] = edit_status
+            salvar_dados(
+                "config_status.json", st.session_state["config_status"]
+            )
+            st.success("Atualizado!")
+            st.rerun()
+      with c3:
+        if st.button("🗑️ Excluir", key=f"del_status_{i}"):
+          if len(st.session_state["config_status"]) > 1:
+            st.session_state["config_status"].pop(i)
+            salvar_dados(
+                "config_status.json", st.session_state["config_status"]
+            )
+            st.warning("Removido!")
+            st.rerun()
+          else:
+            st.error("Mínimo de 1 status exigido.")
 
-  st.write("Funções atuais cadastradas:")
-  st.write(st.session_state["config_funcoes"])
+  # --- GERENCIAR FUNÇÕES / SELOS ---
+  with col_cfg2:
+    st.markdown("### 🏷️ Funções / Selos")
+    nova_funcao = st.text_input("Nova Função", key="input_nova_funcao")
+    if st.button("Adicionar Função"):
+      if (
+          nova_funcao
+          and nova_funcao not in st.session_state["config_funcoes"]
+      ):
+        st.session_state["config_funcoes"].append(nova_funcao)
+        salvar_dados("config_funcoes.json", st.session_state["config_funcoes"])
+        st.success(f"Função '{nova_funcao}' adicionada!")
+        st.rerun()
+
+    st.markdown("---")
+    st.write("Editar ou remover funções existentes:")
+
+    for j, f_atual in enumerate(st.session_state["config_funcoes"]):
+      cf1, cf2, cf3 = st.columns([3, 1, 1])
+      with cf1:
+        edit_funcao = st.text_input(
+            f"Editar Função {j}", value=f_atual, key=f"edit_funcao_{j}", label_visibility="collapsed"
+        )
+      with cf2:
+        if st.button("💾 Salvar", key=f"save_funcao_{j}"):
+          if edit_funcao and edit_funcao != f_atual:
+            st.session_state["config_funcoes"][j] = edit_funcao
+            salvar_dados(
+                "config_funcoes.json", st.session_state["config_funcoes"]
+            )
+            st.success("Atualizado!")
+            st.rerun()
+      with cf3:
+        if st.button("🗑️ Excluir", key=f"del_funcao_{j}"):
+          if len(st.session_state["config_funcoes"]) > 1:
+            st.session_state["config_funcoes"].pop(j)
+            salvar_dados(
+                "config_funcoes.json", st.session_state["config_funcoes"]
+            )
+            st.warning("Removido!")
+            st.rerun()
+          else:
+            st.error("Mínimo de 1 função exigida.")
 
 # 2. ABA DE CADASTRO / EDIÇÃO
 elif aba == "Cadastrar / Editar Peão":
@@ -152,7 +215,9 @@ elif aba == "Cadastrar / Editar Peão":
     semana = st.slider("Semana", 1, 14, 1)
 
     # Select populado pelas funções dinâmicas cadastradas
-    funcao = st.selectbox("Função / Tarefa (Selo)", st.session_state["config_funcoes"])
+    funcao = st.selectbox(
+        "Função / Tarefa (Selo)", st.session_state["config_funcoes"]
+    )
 
     descricao = st.text_area("Descrição do Acontecimento")
 

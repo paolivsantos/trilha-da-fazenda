@@ -55,66 +55,110 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Arquivo JSON local para persistência dos dados
+# Arquivos JSON locais para persistência
 ARQUIVO_DADOS = "dados_trilha.json"
+ARQUIVO_CONFIG = "config_trilha.json"
 
 
-def carregar_dados():
-  if os.path.exists(ARQUIVO_DADOS):
-    with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+def carregar_dados(arquivo, padrao):
+  if os.path.exists(arquivo):
+    with open(arquivo, "r", encoding="utf-8") as f:
       return json.load(f)
-  return []
+  return padrao
 
 
-def salvar_dados(dados):
-  with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
+def salvar_dados(arquivo, dados):
+  with open(arquivo, "w", encoding="utf-8") as f:
     json.dump(dados, f, ensure_ascii=False, indent=4)
 
 
-# Carrega os participantes
+# Configurações padrão iniciais caso os arquivos não existam
+status_padrao = ["No Jogo", "Eliminado", "Finalista", "Expulso", "Desistente"]
+funcoes_padrao = [
+    "Chapéu do Fazendeiro",
+    "Trato dos Bichos",
+    "Limpeza",
+    "Horta",
+    "Na Roça",
+]
+
+# Inicializa estados
 if "participantes" not in st.session_state:
-  st.session_state["participantes"] = carregar_dados()
+  st.session_state["participantes"] = carregar_dados(ARQUIVO_DADOS, [])
+if "config_status" not in st.session_state:
+  st.session_state["config_status"] = carregar_dados(
+      "config_status.json", status_padrao
+  )
+if "config_funcoes" not in st.session_state:
+  st.session_state["config_funcoes"] = carregar_dados(
+      "config_funcoes.json", funcoes_padrao
+  )
 
 # Título do App
 st.title("🤠 Trilha da Roça - A Fazenda")
-st.markdown(
-    "Painel dinâmico para gerenciamento da linha do tempo e funções dos"
-    " peões."
-)
+st.markdown("Painel de gerenciamento, configuração e linha do tempo dos peões.")
 
 # --- PAINEL LATERAL (CONTROLES) ---
-st.sidebar.header("⚙️ Gerenciamento")
-aba = st.sidebar.radio("Navegação", ["Visualizar Trilha", "Cadastrar / Editar"])
+st.sidebar.header("⚙️ Painel de Controle")
+aba = st.sidebar.radio(
+    "Navegação",
+    ["Visualizar Trilha", "Cadastrar / Editar Peão", "⚙️ Configurações"],
+)
 
-if aba == "Cadastrar / Editar":
+# 1. ABA DE CONFIGURAÇÕES (ADMIN)
+if aba == "⚙️ Configurações":
+  st.sidebar.subheader("Gerenciar Opções do Sistema")
+
+  # Gerenciar Status
+  st.subheader("Gerenciamento de Status Permitidos")
+  novo_status = st.text_input("Adicionar Novo Status")
+  if st.button("Cadastrar Status"):
+    if novo_status and novo_status not in st.session_state["config_status"]:
+      st.session_state["config_status"].append(novo_status)
+      salvar_dados("config_status.json", st.session_state["config_status"])
+      st.success(f"Status '{novo_status}' adicionado com sucesso!")
+
+  st.write("Status atuais cadastrados:")
+  st.write(st.session_state["config_status"])
+
+  st.markdown("---")
+
+  # Gerenciar Funções / Selos
+  st.subheader("Gerenciamento de Funções / Selos")
+  nova_funcao = st.text_input("Adicionar Nova Função")
+  if st.button("Cadastrar Função"):
+    if nova_funcao and nova_funcao not in st.session_state["config_funcoes"]:
+      st.session_state["config_funcoes"].append(nova_funcao)
+      salvar_dados("config_funcoes.json", st.session_state["config_funcoes"])
+      st.success(f"Função '{nova_funcao}' adicionada com sucesso!")
+
+  st.write("Funções atuais cadastradas:")
+  st.write(st.session_state["config_funcoes"])
+
+# 2. ABA DE CADASTRO / EDIÇÃO
+elif aba == "Cadastrar / Editar Peão":
   st.sidebar.subheader("Novo Momento do Peão")
 
   with st.sidebar.form("form_cadastro"):
     nome = st.text_input("Nome do Participante")
 
-    # Opção dinâmica para o Redator digitar o Status livremente
-    status = st.text_input(
-        "Status do Participante",
-        value="No Jogo",
-        placeholder="Ex: No Jogo, Eliminado, Finalista, Fazendeiro da Semana...",
+    # Select populado pelas configurações dinâmicas
+    status = st.selectbox(
+        "Status do Participante", st.session_state["config_status"]
     )
-
     foto = st.text_input("URL da Foto do Peão")
 
     st.markdown("---")
     semana = st.slider("Semana", 1, 14, 1)
 
-    # Mudança de Tipo de Ação para 'Função' com campo livre/personalizável
-    funcao = st.text_input(
-        "Função / Tarefa (Selo)",
-        placeholder="Ex: Chapéu do Fazendeiro, Trato dos Bichos, Limpeza...",
-    )
+    # Select populado pelas funções dinâmicas cadastradas
+    funcao = st.selectbox("Função / Tarefa (Selo)", st.session_state["config_funcoes"])
 
     descricao = st.text_area("Descrição do Acontecimento")
 
     enviar = st.form_submit_button("Salvar na Trilha")
 
-    if enviar and nome and funcao:
+    if enviar and nome:
       lista = st.session_state["participantes"]
       encontrado = False
 
@@ -142,93 +186,97 @@ if aba == "Cadastrar / Editar":
         }
         lista.append(novo_p)
 
-      salvar_dados(lista)
+      salvar_dados(ARQUIVO_DADOS, lista)
       st.sidebar.success(
           f"Registro da Semana {semana} salvo para {nome} com sucesso!"
       )
 
-# --- ÁREA PRINCIPAL ---
-st.subheader("📋 Linha do Tempo Ativa")
+# 3. ABA DE VISUALIZAÇÃO
+else:
+  st.subheader("📋 Linha do Tempo Ativa")
 
-participantes = st.session_state["participantes"]
+  participantes = st.session_state["participantes"]
 
-if not participantes:
-  st.info(
-      "Nenhum participante cadastrado ainda. Use a barra lateral para"
-      " começar."
-  )
-
-
-# Função inteligente para associar ícones com base no texto livre da Função digitada pelo redator
-def get_icone(texto_funcao):
-  t = texto_funcao.lower()
-  if "fazendeiro" in t or "chapéu" in t:
-    return "🤠"
-  elif (
-      "bichos" in t
-      | "animal" in t
-      | "vaca" in t
-      | "cavalo" in t
-      | "ave" in t
-      | "porco" in t
-  ):
-    return "🐄"
-  elif "limpeza" in t or "limpar" in t or "lixo" in t:
-    return "🧹"
-  elif "horta" in t or "planta" in t or "cultivo" in t:
-    return "🌱"
-  elif "roça" in t or "indicação" in t or "votação" in t:
-    return "🔥"
-  elif "festa" in t or "vip" in t:
-    return "🎉"
-  return "⭐"
+  if not participantes:
+    st.info(
+        "Nenhum participante cadastrado ainda. Use a barra lateral para"
+        " começar."
+    )
 
 
-for p in participantes:
-  status_texto = p.get("status", "No Jogo")
-  is_no_jogo = any(
-      s in status_texto.lower() for s in ["no jogo", "campeão", "finalista"]
-  )
-  badge_class = "status-badge no-jogo" if is_no_jogo else "status-badge"
-
-  st.markdown(
-      f"""
-    <div class="participante-card">
-        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px; border-bottom: 2px dashed #283735; padding-bottom: 12px;">
-            <img src="{p.get('foto', '')}" style="width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 3px solid #00ad9d;">
-            <div>
-                <h3 style="margin: 0 0 5px 0; color: #ffffff;">{p['nome']}</h3>
-                <span class="{badge_class}">{status_texto}</span>
-            </div>
-        </div>
-    </div>
-    """,
-      unsafe_allow_html=True,
-  )
-
-  semanas = p.get("semanas", {})
-  if semanas:
-    cols = st.columns(min(len(semanas), 4))
-    idx = 0
-    for semana_num, (func_nome, desc) in sorted(
-        semanas.items(), key=lambda x: int(x[0])
+  def get_icone(texto_funcao):
+    t = texto_funcao.lower()
+    if "fazendeiro" in t or "chapéu" in t:
+      return "🤠"
+    elif any(
+        x in t
+        for x in [
+            "bichos",
+            "animal",
+            "vaca",
+            "cavalo",
+            "ave",
+            "porco",
+            "trato",
+        ]
     ):
-      icone = get_icone(func_nome)
-      with cols[idx % len(cols)]:
-        st.markdown(
-            f"""
-                <div style="background: #212e2c; border: 1px solid #283735; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-                    <div style="font-size: 10px; font-weight: bold; color: #DB8645; text-transform: uppercase;">Semana {semana_num}</div>
-                    <div style="margin: 4px 0;"><span class="marco-selo">{icone} {func_nome}</span></div>
-                    <div style="font-size: 12px; color: #d1c2a5; margin-top: 4px;">{desc}</div>
-                </div>
-                """,
-            unsafe_allow_html=True,
-        )
-      idx += 1
-  else:
+      return "🐄"
+    elif "limpeza" in t or "limpar" in t or "lixo" in t:
+      return "🧹"
+    elif "horta" in t or "planta" in t or "cultivo" in t:
+      return "🌱"
+    elif "roça" in t or "indicação" in t or "votação" in t:
+      return "🔥"
+    elif "festa" in t or "vip" in t:
+      return "🎉"
+    return "⭐"
+
+
+  for p in participantes:
+    status_texto = p.get("status", "No Jogo")
+    is_no_jogo = any(
+        s in status_texto.lower() for s in ["no jogo", "campeão", "finalista"]
+    )
+    badge_class = "status-badge no-jogo" if is_no_jogo else "status-badge"
+
     st.markdown(
-        "<p style='color: #bfa888; font-size: 12px;'>Nenhum marco cadastrado"
-        " para este participante.</p>",
+        f"""
+      <div class="participante-card">
+          <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px; border-bottom: 2px dashed #283735; padding-bottom: 12px;">
+              <img src="{p.get('foto', '')}" style="width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 3px solid #00ad9d;">
+              <div>
+                  <h3 style="margin: 0 0 5px 0; color: #ffffff;">{p['nome']}</h3>
+                  <span class="{badge_class}">{status_texto}</span>
+              </div>
+          </div>
+      </div>
+      """,
         unsafe_allow_html=True,
     )
+
+    semanas = p.get("semanas", {})
+    if semanas:
+      cols = st.columns(min(len(semanas), 4))
+      idx = 0
+      for semana_num, (func_nome, desc) in sorted(
+          semanas.items(), key=lambda x: int(x[0])
+      ):
+        icone = get_icone(func_nome)
+        with cols[idx % len(cols)]:
+          st.markdown(
+              f"""
+                  <div style="background: #212e2c; border: 1px solid #283735; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                      <div style="font-size: 10px; font-weight: bold; color: #DB8645; text-transform: uppercase;">Semana {semana_num}</div>
+                      <div style="margin: 4px 0;"><span class="marco-selo">{icone} {func_nome}</span></div>
+                      <div style="font-size: 12px; color: #d1c2a5; margin-top: 4px;">{desc}</div>
+                  </div>
+                  """,
+              unsafe_allow_html=True,
+          )
+        idx += 1
+    else:
+      st.markdown(
+          "<p style='color: #bfa888; font-size: 12px;'>Nenhum marco cadastrado"
+          " para este participante.</p>",
+          unsafe_allow_html=True,
+      )

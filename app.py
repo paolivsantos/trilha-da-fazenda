@@ -56,18 +56,6 @@ st.markdown(
         background: #00ad9d;
         color: #121817;
     }
-    /* Estilização da barra de seleção compacta de avatares */
-    .avatar-container {
-        display: flex;
-        gap: 12px;
-        overflow-x: auto;
-        padding: 10px 5px;
-        background: #182220;
-        border-radius: 12px;
-        border: 1px solid #283735;
-        margin-bottom: 20px;
-        align-items: center;
-    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -272,7 +260,7 @@ if aba == "⚙️ Configurações":
           else:
             st.error("Mínimo de 1 função exigida.")
 
-# 2. ABA DE GERENCIAR ELENCO E INCLUSÃO DE JORNADA (SELETOR COMPACTO DE AVATARES)
+# 2. ABA DE GERENCIAR ELENCO E INCLUSÃO DE JORNADA
 elif aba == "👥 Gerenciar Elenco & Jornada":
   st.subheader("👥 Seleção de Participante para Gestão de Marcos")
   st.markdown(
@@ -280,9 +268,9 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
       " lançamento da jornada."
   )
 
-  # Formulário de Cadastro Rápido na Barra Lateral
+  # Formulário de Cadastro Rápido na Barra Lateral (envolve form para limpar os inputs nativamente)
   st.sidebar.subheader("➕ Novo Participante")
-  with st.sidebar.form("form_elenco"):
+  with st.sidebar.form("form_elenco_novo", clear_on_submit=True):
     nome_peao = st.text_input("Nome do Participante")
     status_peao = st.selectbox(
         "Status Inicial", st.session_state["config_status"]
@@ -293,29 +281,32 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
 
     cadastrar_peao = st.form_submit_button("Cadastrar no Elenco")
 
-    if cadastrar_peao and nome_peao:
-      lista = st.session_state["participantes"]
-      existe = any(p["nome"].lower() == nome_peao.lower() for p in lista)
+    if cadastrar_peao:
+      if nome_peao:
+        lista = st.session_state["participantes"]
+        existe = any(p["nome"].lower() == nome_peao.lower() for p in lista)
 
-      if not existe:
-        novo_p = {
-            "nome": nome_peao,
-            "status": status_peao,
-            "foto": (
-                foto_peao
-                if foto_peao
-                else "https://via.placeholder.com/150"
-            ),
-            "semanas": {},
-        }
-        lista.append(novo_p)
-        salvar_dados(ARQUIVO_DADOS, lista)
-        st.sidebar.success(
-            f"Participante {nome_peao} adicionado com sucesso!"
-        )
-        st.rerun()
+        if not existe:
+          novo_p = {
+              "nome": nome_peao,
+              "status": status_peao,
+              "foto": (
+                  foto_peao
+                  if foto_peao
+                  else "https://via.placeholder.com/150"
+              ),
+              "semanas": {},
+          }
+          lista.append(novo_p)
+          salvar_dados(ARQUIVO_DADOS, lista)
+          st.sidebar.success(
+              f"Participante '{nome_peao}' cadastrado com sucesso!"
+          )
+          st.rerun()
+        else:
+          st.sidebar.error("Já existe um participante com esse nome.")
       else:
-        st.sidebar.error("Já existe um participante com esse nome.")
+        st.sidebar.warning("O nome do participante é obrigatório.")
 
   participantes = st.session_state["participantes"]
 
@@ -325,11 +316,30 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
         " adicionar."
     )
   else:
-    # Renderização otimizada em colunas dinâmicas para acomodar 26+ participantes de forma limpa
-    num_cols = min(len(participantes), 10)  # Exibe até 10 por linha com rolagem natural
+    # --- CONTROLE DE ORDENAÇÃO ---
+    col_ord1, col_ord2, _ = st.columns([2, 3, 5])
+    with col_ord1:
+      criterio_ordenacao = st.selectbox(
+          "Ordenar Elenco por:",
+          ["Ordem de Cadastro", "Nome (A-Z)", "Status"],
+          label_visibility="collapsed",
+      )
+
+    # Aplica ordenação temporária na exibição conforme escolha
+    if criterio_ordenacao == "Nome (A-Z)":
+      participantes_exibicao = sorted(participantes, key=lambda x: x["nome"].lower())
+    elif criterio_ordenacao == "Status":
+      participantes_exibicao = sorted(participantes, key=lambda x: x["status"])
+    else:
+      participantes_exibicao = participantes
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Renderização em grade compacta de avatares
+    num_cols = min(len(participantes_exibicao), 10)
     cols_elenco = st.columns(num_cols)
 
-    for idx, p in enumerate(participantes):
+    for idx, p in enumerate(participantes_exibicao):
       with cols_elenco[idx % num_cols]:
         is_selecionado = (
             st.session_state["peao_selecionado"] == p["nome"]
@@ -337,7 +347,6 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
         borda_cor = "#DB8645" if is_selecionado else "#00ad9d"
         espessura = "4px" if is_selecionado else "2px"
 
-        # Mini card circular focado na foto e nome abreviado em tooltip/hover
         st.markdown(
             f"""
             <div style="text-align: center; margin-bottom: 5px;" title="{p['nome']} ({p['status']})">
@@ -377,8 +386,8 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
 
         with col_form:
           st.markdown("#### Adicionar Novo Marco / Status")
-          with st.form("form_marco_direto"):
-            # Atualizar status geral opcional
+          # clear_on_submit=True garante que os campos de texto/url limpam após o clique em Salvar
+          with st.form("form_marco_direto", clear_on_submit=True):
             atualizar_status = st.checkbox(
                 "Atualizar status geral do peão?", value=False
             )
@@ -540,7 +549,7 @@ else:
 
             link_html = (
                 f'<a href="{url_link}" target="_blank" class="link-btn">🔗 Ver'
-    " Detalhes</a>"
+                " Detalhes</a>"
                 if url_link
                 else ""
             )

@@ -100,9 +100,12 @@ if "config_funcoes" not in st.session_state:
       "config_funcoes.json", funcoes_padrao
   )
 if "config_total_semanas" not in st.session_state:
-  # Carrega as configurações globais de temporada ou usa o padrão
-  cfg_geral = carregar_dados("config_geral.json", {"total_semanas": total_semanas_padrao})
-  st.session_state["config_total_semanas"] = cfg_geral.get("total_semanas", total_semanas_padrao)
+  cfg_geral = carregar_dados(
+      "config_geral.json", {"total_semanas": total_semanas_padrao}
+  )
+  st.session_state["config_total_semanas"] = cfg_geral.get(
+      "total_semanas", total_semanas_padrao
+  )
 
 # Controle de qual participante está selecionado para gerenciamento na aba de Elenco
 if "peao_selecionado" not in st.session_state:
@@ -131,15 +134,21 @@ if aba == "⚙️ Configurações":
         "Total de Semanas da Edição",
         min_value=1,
         max_value=30,
-        value=st.session_state["config_total_semanas"],
+        value=int(st.session_state["config_total_semanas"]),
         step=1,
-        help="Define o limite máximo de semanas exibidas nos seletores de marcos e na linha do tempo."
+        help=(
+            "Define o limite máximo de semanas exibidas nos seletores de"
+            " marcos e na linha do tempo."
+        ),
     )
   with col_sem_2:
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("💾 Salvar Semanas"):
       st.session_state["config_total_semanas"] = int(novo_total_semanas)
-      salvar_dados("config_geral.json", {"total_semanas": st.session_state["config_total_semanas"]})
+      salvar_dados(
+          "config_geral.json",
+          {"total_semanas": st.session_state["config_total_semanas"]},
+      )
       st.success("Duração atualizada com sucesso!")
       st.rerun()
 
@@ -366,9 +375,15 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
             )
 
             st.markdown("---")
-            # Slider utiliza dinamicamente o valor máximo configurado nas Configurações
+            # Selectbox substituindo o slider, alimentado pelas configurações globais
             total_sem = int(st.session_state["config_total_semanas"])
-            semana = st.slider("Semana", 1, total_sem, 1)
+            lista_semanas_opcoes = [f"Semana {i}" for i in range(1, total_sem + 1)]
+            
+            semana_selecionada_str = st.selectbox(
+                "Selecione a Semana", lista_semanas_opcoes
+            )
+            # Extrai apenas o número da string (ex: "Semana 3" -> 3)
+            semana = int(semana_selecionada_str.replace("Semana ", ""))
             
             funcao = st.selectbox(
                 "Função / Tarefa (Selo)", st.session_state["config_funcoes"]

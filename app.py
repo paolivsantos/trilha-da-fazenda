@@ -7,7 +7,7 @@ st.set_page_config(
     page_title="Trilha da Roça - Gerenciador", page_icon="🤠", layout="wide"
 )
 
-# Estilização CSS personalizada (incluindo o layout compacto de avatares)
+# Estilização CSS personalizada
 st.markdown(
     """
     <style>
@@ -268,7 +268,7 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
       " lançamento da jornada."
   )
 
-  # Formulário de Cadastro Rápido na Barra Lateral (envolve form para limpar os inputs nativamente)
+  # Formulário de Cadastro Rápido na Barra Lateral
   st.sidebar.subheader("➕ Novo Participante")
   with st.sidebar.form("form_elenco_novo", clear_on_submit=True):
     nome_peao = st.text_input("Nome do Participante")
@@ -325,9 +325,10 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
           label_visibility="collapsed",
       )
 
-    # Aplica ordenação temporária na exibição conforme escolha
     if criterio_ordenacao == "Nome (A-Z)":
-      participantes_exibicao = sorted(participantes, key=lambda x: x["nome"].lower())
+      participantes_exibicao = sorted(
+          participantes, key=lambda x: x["nome"].lower()
+      )
     elif criterio_ordenacao == "Status":
       participantes_exibicao = sorted(participantes, key=lambda x: x["status"])
     else:
@@ -386,7 +387,6 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
 
         with col_form:
           st.markdown("#### Adicionar Novo Marco / Status")
-          # clear_on_submit=True garante que os campos de texto/url limpam após o clique em Salvar
           with st.form("form_marco_direto", clear_on_submit=True):
             atualizar_status = st.checkbox(
                 "Atualizar status geral do peão?", value=False
@@ -397,18 +397,22 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
 
             st.markdown("---")
             total_sem = int(st.session_state["config_total_semanas"])
-            lista_semanas_opcoes = [
+            
+            # Adicionando opção em branco no início da lista de semanas
+            lista_semanas_opcoes = [""] + [
                 f"Semana {i}" for i in range(1, total_sem + 1)
             ]
 
             semana_selecionada_str = st.selectbox(
                 "Selecione a Semana", lista_semanas_opcoes
             )
-            semana = int(semana_selecionada_str.replace("Semana ", ""))
 
+            # Adicionando opção em branco no início da lista de funções/selos
+            lista_funcoes_opcoes = [""] + st.session_state["config_funcoes"]
             funcao = st.selectbox(
-                "Função / Tarefa (Selo)", st.session_state["config_funcoes"]
+                "Função / Tarefa (Selo)", lista_funcoes_opcoes
             )
+
             descricao = st.text_area("Descrição do Acontecimento")
             url_link = st.text_input(
                 "URL de Referência (Vídeo / Matéria)",
@@ -418,24 +422,35 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
             salvar_marco = st.form_submit_button("Salvar Marco na Semana")
 
             if salvar_marco:
-              if atualizar_status:
-                peao_ativo["status"] = novo_status_peao
+              # Validação para impedir salvamento se os campos obrigatórios estiverem em branco
+              if not semana_selecionada_str or not funcao:
+                st.error(
+                    "Por favor, selecione a **Semana** e a **Função / Tarefa"
+                    " (Selo)** antes de salvar."
+                )
+              else:
+                semana = int(semana_selecionada_str.replace("Semana ", ""))
 
-              if "semanas" not in peao_ativo:
-                peao_ativo["semanas"] = {}
+                if atualizar_status:
+                  peao_ativo["status"] = novo_status_peao
 
-              s_str = str(semana)
-              if s_str not in peao_ativo["semanas"]:
-                peao_ativo["semanas"][s_str] = []
+                if "semanas" not in peao_ativo:
+                  peao_ativo["semanas"] = {}
 
-              peao_ativo["semanas"][s_str].append([funcao, descricao, url_link])
+                s_str = str(semana)
+                if s_str not in peao_ativo["semanas"]:
+                  peao_ativo["semanas"][s_str] = []
 
-              salvar_dados(ARQUIVO_DADOS, participantes)
-              st.success(
-                  f"Marco adicionado à Semana {semana} para"
-                  f" {peao_ativo['nome']}!"
-              )
-              st.rerun()
+                peao_ativo["semanas"][s_str].append(
+                    [funcao, descricao, url_link]
+                )
+
+                salvar_dados(ARQUIVO_DADOS, participantes)
+                st.success(
+                    f"Marco adicionado à Semana {semana} para"
+                    f" {peao_ativo['nome']}!"
+                )
+                st.rerun()
 
         with col_historico:
           st.markdown("#### Histórico Cadastrado")

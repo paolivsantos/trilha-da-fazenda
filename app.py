@@ -86,6 +86,7 @@ funcoes_padrao = [
     "Horta",
     "Na Roça",
 ]
+total_semanas_padrao = 14
 
 # Inicializa estados
 if "participantes" not in st.session_state:
@@ -98,6 +99,10 @@ if "config_funcoes" not in st.session_state:
   st.session_state["config_funcoes"] = carregar_dados(
       "config_funcoes.json", funcoes_padrao
   )
+if "config_total_semanas" not in st.session_state:
+  # Carrega as configurações globais de temporada ou usa o padrão
+  cfg_geral = carregar_dados("config_geral.json", {"total_semanas": total_semanas_padrao})
+  st.session_state["config_total_semanas"] = cfg_geral.get("total_semanas", total_semanas_padrao)
 
 # Controle de qual participante está selecionado para gerenciamento na aba de Elenco
 if "peao_selecionado" not in st.session_state:
@@ -116,7 +121,29 @@ aba = st.sidebar.radio(
 
 # 1. ABA DE CONFIGURAÇÕES (ADMIN)
 if aba == "⚙️ Configurações":
-  st.subheader("⚙️ Gerenciamento de Status e Funções")
+  st.subheader("⚙️ Configurações Gerais da Temporada")
+
+  # --- CONFIGURAÇÃO DE TOTAL DE SEMANAS ---
+  st.markdown("### 📅 Duração da Temporada")
+  col_sem_1, col_sem_2 = st.columns([2, 1])
+  with col_sem_1:
+    novo_total_semanas = st.number_input(
+        "Total de Semanas da Edição",
+        min_value=1,
+        max_value=30,
+        value=st.session_state["config_total_semanas"],
+        step=1,
+        help="Define o limite máximo de semanas exibidas nos seletores de marcos e na linha do tempo."
+    )
+  with col_sem_2:
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("💾 Salvar Semanas"):
+      st.session_state["config_total_semanas"] = int(novo_total_semanas)
+      salvar_dados("config_geral.json", {"total_semanas": st.session_state["config_total_semanas"]})
+      st.success("Duração atualizada com sucesso!")
+      st.rerun()
+
+  st.markdown("---")
 
   col_cfg1, col_cfg2 = st.columns(2)
 
@@ -339,7 +366,10 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
             )
 
             st.markdown("---")
-            semana = st.slider("Semana", 1, 14, 1)
+            # Slider utiliza dinamicamente o valor máximo configurado nas Configurações
+            total_sem = int(st.session_state["config_total_semanas"])
+            semana = st.slider("Semana", 1, total_sem, 1)
+            
             funcao = st.selectbox(
                 "Função / Tarefa (Selo)", st.session_state["config_funcoes"]
             )
@@ -362,7 +392,7 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
               if s_str not in peao_ativo["semanas"]:
                 peao_ativo["semanas"][s_str] = []
 
-              # Adiciona o novo marco na lista daquela semana (permitindo múltiplos status/marcos na mesma semana)
+              # Adiciona o novo marco na lista daquela semana
               peao_ativo["semanas"][s_str].append([funcao, descricao, url_link])
 
               salvar_dados(ARQUIVO_DADOS, participantes)

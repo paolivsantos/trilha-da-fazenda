@@ -7,7 +7,7 @@ st.set_page_config(
     page_title="Trilha da Roça - Gerenciador", page_icon="🤠", layout="wide"
 )
 
-# Estilização CSS personalizada com a paleta de cores (#00ad9d e #DB8645)
+# Estilização CSS personalizada (incluindo o layout compacto de avatares)
 st.markdown(
     """
     <style>
@@ -55,6 +55,18 @@ st.markdown(
     .link-btn:hover {
         background: #00ad9d;
         color: #121817;
+    }
+    /* Estilização da barra de seleção compacta de avatares */
+    .avatar-container {
+        display: flex;
+        gap: 12px;
+        overflow-x: auto;
+        padding: 10px 5px;
+        background: #182220;
+        border-radius: 12px;
+        border: 1px solid #283735;
+        margin-bottom: 20px;
+        align-items: center;
     }
     </style>
 """,
@@ -260,13 +272,12 @@ if aba == "⚙️ Configurações":
           else:
             st.error("Mínimo de 1 função exigida.")
 
-# 2. ABA DE GERENCIAR ELENCO E INCLUSÃO DE JORNADA (INTERATIVO POR CLIQUE)
+# 2. ABA DE GERENCIAR ELENCO E INCLUSÃO DE JORNADA (SELETOR COMPACTO DE AVATARES)
 elif aba == "👥 Gerenciar Elenco & Jornada":
-  st.subheader("👥 Cadastro e Gestão de Marcos por Participante")
+  st.subheader("👥 Seleção de Participante para Gestão de Marcos")
   st.markdown(
-      "Cadastre novos peões na barra lateral ou **clique na foto/nome de um"
-      " participante abaixo** para abrir o painel de inclusão de marcos da"
-      " semana."
+      "Clique na foto redonda do participante abaixo para abrir o painel de"
+      " lançamento da jornada."
   )
 
   # Formulário de Cadastro Rápido na Barra Lateral
@@ -314,32 +325,33 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
         " adicionar."
     )
   else:
-    # Exibe grade de avatares estilo carrossel/cards clicáveis
-    cols_elenco = st.columns(5)
+    # Renderização otimizada em colunas dinâmicas para acomodar 26+ participantes de forma limpa
+    num_cols = min(len(participantes), 10)  # Exibe até 10 por linha com rolagem natural
+    cols_elenco = st.columns(num_cols)
+
     for idx, p in enumerate(participantes):
-      with cols_elenco[idx % 5]:
+      with cols_elenco[idx % num_cols]:
         is_selecionado = (
             st.session_state["peao_selecionado"] == p["nome"]
         )
-        borda_cor = "#00ad9d" if is_selecionado else "#283735"
-        fundo_cor = "#1f2d2b" if is_selecionado else "#1a2322"
+        borda_cor = "#DB8645" if is_selecionado else "#00ad9d"
+        espessura = "4px" if is_selecionado else "2px"
 
+        # Mini card circular focado na foto e nome abreviado em tooltip/hover
         st.markdown(
             f"""
-            <div style="background: {fundo_cor}; border: 2px solid {borda_cor}; padding: 12px; border-radius: 10px; text-align: center; margin-bottom: 10px;">
-                <img src="{p.get('foto', '')}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #00ad9d; margin-bottom: 6px;">
-                <div style="font-weight: bold; color: #ffffff; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{p['nome']}</div>
-                <div style="font-size: 10px; color: #DB8645; text-transform: uppercase; margin-top: 2px;">{p['status']}</div>
+            <div style="text-align: center; margin-bottom: 5px;" title="{p['nome']} ({p['status']})">
+                <img src="{p.get('foto', '')}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: {espessura} solid {borda_cor}; cursor: pointer;">
+                <div style="font-size: 10px; color: {'#DB8645' if is_selecionado else '#ffffff'}; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; margin: 0 auto;">{p['nome'].split()[0]}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
         if st.button(
-            "Selecionar 🎯"
-            if not is_selecionado
-            else "Selecionado ✔️",
+            "Selecionar" if not is_selecionado else "Ativo",
             key=f"btn_sel_{idx}",
+            use_container_width=True,
         ):
           st.session_state["peao_selecionado"] = p["nome"]
           st.rerun()
@@ -375,16 +387,16 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
             )
 
             st.markdown("---")
-            # Selectbox substituindo o slider, alimentado pelas configurações globais
             total_sem = int(st.session_state["config_total_semanas"])
-            lista_semanas_opcoes = [f"Semana {i}" for i in range(1, total_sem + 1)]
-            
+            lista_semanas_opcoes = [
+                f"Semana {i}" for i in range(1, total_sem + 1)
+            ]
+
             semana_selecionada_str = st.selectbox(
                 "Selecione a Semana", lista_semanas_opcoes
             )
-            # Extrai apenas o número da string (ex: "Semana 3" -> 3)
             semana = int(semana_selecionada_str.replace("Semana ", ""))
-            
+
             funcao = st.selectbox(
                 "Função / Tarefa (Selo)", st.session_state["config_funcoes"]
             )
@@ -407,7 +419,6 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
               if s_str not in peao_ativo["semanas"]:
                 peao_ativo["semanas"][s_str] = []
 
-              # Adiciona o novo marco na lista daquela semana
               peao_ativo["semanas"][s_str].append([funcao, descricao, url_link])
 
               salvar_dados(ARQUIVO_DADOS, participantes)
@@ -529,7 +540,7 @@ else:
 
             link_html = (
                 f'<a href="{url_link}" target="_blank" class="link-btn">🔗 Ver'
-                " Detalhes</a>"
+    " Detalhes</a>"
                 if url_link
                 else ""
             )

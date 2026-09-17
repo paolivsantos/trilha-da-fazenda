@@ -15,14 +15,6 @@ st.markdown(
         background-color: #121817;
         color: #f4e8d1;
     }
-    .participante-card {
-        background: #1a2322;
-        border: 2px solid #283735;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }
     .status-badge {
         display: inline-block;
         padding: 3px 10px;
@@ -107,6 +99,10 @@ if "config_funcoes" not in st.session_state:
       "config_funcoes.json", funcoes_padrao
   )
 
+# Controle de qual participante está selecionado para gerenciamento na aba de Elenco
+if "peao_selecionado" not in st.session_state:
+  st.session_state["peao_selecionado"] = None
+
 # Título do App
 st.title("🤠 Trilha da Roça - A Fazenda")
 st.markdown("Painel de gerenciamento, configuração e linha do tempo dos peões.")
@@ -115,12 +111,7 @@ st.markdown("Painel de gerenciamento, configuração e linha do tempo dos peões
 st.sidebar.header("⚙️ Painel de Controle")
 aba = st.sidebar.radio(
     "Navegação",
-    [
-        "Visualizar Trilha",
-        "👥 Cadastrar Elenco",
-        "📅 Adicionar Marco Semanal",
-        "⚙️ Configurações",
-    ],
+    ["Visualizar Trilha", "👥 Gerenciar Elenco & Jornada", "⚙️ Configurações"],
 )
 
 # 1. ABA DE CONFIGURAÇÕES (ADMIN)
@@ -233,10 +224,17 @@ if aba == "⚙️ Configurações":
           else:
             st.error("Mínimo de 1 função exigida.")
 
-# 2. ABA DE CADASTRAR ELENCO
-elif aba == "👥 Cadastrar Elenco":
-  st.sidebar.subheader("Novo Participante")
+# 2. ABA DE GERENCIAR ELENCO E INCLUSÃO DE JORNADA (INTERATIVO POR CLIQUE)
+elif aba == "👥 Gerenciar Elenco & Jornada":
+  st.subheader("👥 Cadastro e Gestão de Marcos por Participante")
+  st.markdown(
+      "Cadastre novos peões na barra lateral ou **clique na foto/nome de um"
+      " participante abaixo** para abrir o painel de inclusão de marcos da"
+      " semana."
+  )
 
+  # Formulário de Cadastro Rápido na Barra Lateral
+  st.sidebar.subheader("➕ Novo Participante")
   with st.sidebar.form("form_elenco"):
     nome_peao = st.text_input("Nome do Participante")
     status_peao = st.selectbox(
@@ -268,107 +266,138 @@ elif aba == "👥 Cadastrar Elenco":
         st.sidebar.success(
             f"Participante {nome_peao} adicionado com sucesso!"
         )
+        st.rerun()
       else:
         st.sidebar.error("Já existe um participante com esse nome.")
 
-  st.subheader("👥 Elenco Atual Cadastrado")
   participantes = st.session_state["participantes"]
+
   if not participantes:
-    st.info("Nenhum participante no elenco ainda.")
+    st.info(
+        "Nenhum participante cadastrado ainda. Use a barra lateral para"
+        " adicionar."
+    )
   else:
-    cols_elenco = st.columns(4)
+    # Exibe grade de avatares estilo carrossel/cards clicáveis
+    cols_elenco = st.columns(5)
     for idx, p in enumerate(participantes):
-      with cols_elenco[idx % 4]:
+      with cols_elenco[idx % 5]:
+        is_selecionado = (
+            st.session_state["peao_selecionado"] == p["nome"]
+        )
+        borda_cor = "#00ad9d" if is_selecionado else "#283735"
+        fundo_cor = "#1f2d2b" if is_selecionado else "#1a2322"
+
         st.markdown(
             f"""
-                <div style="background: #1a2322; border: 1px solid #283735; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 15px;">
-                    <img src="{p.get('foto', '')}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #00ad9d; margin-bottom: 8px;">
-                    <div style="font-weight: bold; color: #ffffff; font-size: 14px;">{p['nome']}</div>
-                    <div style="font-size: 11px; color: #DB8645; text-transform: uppercase; margin-top: 4px;">{p['status']}</div>
-                </div>
+            <div style="background: {fundo_cor}; border: 2px solid {borda_cor}; padding: 12px; border-radius: 10px; text-align: center; margin-bottom: 10px;">
+                <img src="{p.get('foto', '')}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #00ad9d; margin-bottom: 6px;">
+                <div style="font-weight: bold; color: #ffffff; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{p['nome']}</div>
+                <div style="font-size: 10px; color: #DB8645; text-transform: uppercase; margin-top: 2px;">{p['status']}</div>
+            </div>
             """,
             unsafe_allow_html=True,
         )
 
-# 3. ABA DE ADICIONAR MARCO SEMANAL
-elif aba == "📅 Adicionar Marco Semanal":
-  st.sidebar.subheader("Lançamento da Semana")
+        if st.button(
+            "Selecionar 🎯"
+            if not is_selecionado
+            else "Selecionado ✔️",
+            key=f"btn_sel_{idx}",
+        ):
+          st.session_state["peao_selecionado"] = p["nome"]
+          st.rerun()
 
-  participantes = st.session_state["participantes"]
-
-  if not participantes:
-    st.warning(
-        "Cadastre pelo menos um participante na aba 'Cadastrar Elenco' antes"
-        " de lançar marcos."
-    )
-  else:
-    nomes_participantes = [p["nome"] for p in participantes]
-
-    with st.sidebar.form("form_marco"):
-      participante_escolhido = st.selectbox(
-          "Selecione o Participante", nomes_participantes
+    # --- SEÇÃO INSERIDA LOGO ABAIXO QUANDO UM PEÃO É SELECIONADO ---
+    if st.session_state["peao_selecionado"]:
+      peao_ativo = next(
+          (
+              p
+              for p in participantes
+              if p["nome"] == st.session_state["peao_selecionado"]
+          ),
+          None,
       )
 
-      # Atualizar status geral opcional direto no lançamento
-      atualizar_status = st.checkbox(
-          "Atualizar status atual do peão?", value=False
-      )
-      novo_status_peao = st.selectbox(
-          "Novo Status", st.session_state["config_status"]
-      )
-
-      st.markdown("---")
-      semana = st.slider("Semana", 1, 14, 1)
-      funcao = st.selectbox(
-          "Função / Tarefa (Selo)", st.session_state["config_funcoes"]
-      )
-      descricao = st.text_area("Descrição do Acontecimento")
-      url_link = st.text_input(
-          "URL de Referência (Vídeo / Matéria)",
-          placeholder="https://R7.com/...",
-      )
-
-      salvar_marco = st.form_submit_button("Salvar Marco na Trilha")
-
-      if salvar_marco:
-        for p in participantes:
-          if p["nome"] == participante_escolhido:
-            if atualizar_status:
-              p["status"] = novo_status_peao
-            if "semanas" not in p:
-              p["semanas"] = {}
-            # Salvando agora a lista com 3 elementos: [funcao, descricao, url]
-            p["semanas"][str(semana)] = [funcao, descricao, url_link]
-            break
-
-        salvar_dados(ARQUIVO_DADOS, participantes)
-        st.sidebar.success(
-            f"Marco da Semana {semana} salvo para {participante_escolhido}!"
+      if peao_ativo:
+        st.markdown("---")
+        st.markdown(
+            f"### ✏️ Gerenciando Jornada de: **{peao_ativo['nome']}**"
         )
 
-  st.subheader("📋 Acompanhamento dos Marcos Lançados")
-  if not participantes:
-    st.info("Nenhum dado cadastrado.")
-  else:
-    for p in participantes:
-      st.write(f"**{p['nome']}** (Status: *{p['status']}*)")
-      semanas = p.get("semanas", {})
-      if semanas:
-        for s_num, dados_s in sorted(
-            semanas.items(), key=lambda x: int(x[0])
-        ):
-          # Compatibilidade retroativa caso algum dado antigo tenha 2 ou 3 itens
-          f_nome = dados_s[0]
-          desc = dados_s[1]
-          link = dados_s[2] if len(dados_s) > 2 else ""
-          st.text(
-              f"  - Semana {s_num}: [{f_nome}] {desc} | Link: {link if link else 'Nenhum'}"
-          )
-      else:
-        st.text("  - Nenhum marco cadastrado.")
-      st.markdown("---")
+        col_form, col_historico = st.columns([1, 1])
 
-# 4. ABA DE VISUALIZAÇÃO
+        with col_form:
+          st.markdown("#### Adicionar Novo Marco / Status")
+          with st.form("form_marco_direto"):
+            # Atualizar status geral opcional
+            atualizar_status = st.checkbox(
+                "Atualizar status geral do peão?", value=False
+            )
+            novo_status_peao = st.selectbox(
+                "Novo Status Geral", st.session_state["config_status"]
+            )
+
+            st.markdown("---")
+            semana = st.slider("Semana", 1, 14, 1)
+            funcao = st.selectbox(
+                "Função / Tarefa (Selo)", st.session_state["config_funcoes"]
+            )
+            descricao = st.text_area("Descrição do Acontecimento")
+            url_link = st.text_input(
+                "URL de Referência (Vídeo / Matéria)",
+                placeholder="https://R7.com/...",
+            )
+
+            salvar_marco = st.form_submit_button("Salvar Marco na Semana")
+
+            if salvar_marco:
+              if atualizar_status:
+                peao_ativo["status"] = novo_status_peao
+
+              if "semanas" not in peao_ativo:
+                peao_ativo["semanas"] = {}
+
+              s_str = str(semana)
+              if s_str not in peao_ativo["semanas"]:
+                peao_ativo["semanas"][s_str] = []
+
+              # Adiciona o novo marco na lista daquela semana (permitindo múltiplos status/marcos na mesma semana)
+              peao_ativo["semanas"][s_str].append([funcao, descricao, url_link])
+
+              salvar_dados(ARQUIVO_DADOS, participantes)
+              st.success(
+                  f"Marco adicionado à Semana {semana} para"
+                  f" {peao_ativo['nome']}!"
+              )
+              st.rerun()
+
+        with col_historico:
+          st.markdown("#### Histórico Cadastrado")
+          semanas = peao_ativo.get("semanas", {})
+          if semanas:
+            for s_num, lista_marcos in sorted(
+                semanas.items(), key=lambda x: int(x[0])
+            ):
+              st.markdown(f"**Semana {s_num}**")
+              for m_idx, m_dados in enumerate(lista_marcos):
+                f_nome = m_dados[0]
+                desc = m_dados[1]
+                link = m_dados[2] if len(m_dados) > 2 else ""
+
+                st.markdown(
+                    f"""
+                    <div style="background: #1a2322; border: 1px solid #283735; padding: 8px; border-radius: 6px; margin-bottom: 6px; font-size: 12px;">
+                        <span style="color: #00ad9d; font-weight: bold;">[{f_nome}]</span> {desc}
+                        {f'<br><a href="{link}" target="_blank" style="color: #DB8645; font-size: 11px;">🔗 Link externo</a>' if link else ''}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+          else:
+            st.info("Nenhum marco cadastrado para este participante ainda.")
+
+# 3. ABA DE VISUALIZAÇÃO
 else:
   st.subheader("📋 Linha do Tempo Ativa")
 
@@ -376,7 +405,7 @@ else:
 
   if not participantes:
     st.info(
-        "Nenhum participante cadastrado ainda. Use a barra lateral para"
+        "Nenhum participante cadastrado ainda. Use a aba de gerenciamento para"
         " começar."
     )
 
@@ -418,7 +447,7 @@ else:
 
     st.markdown(
         f"""
-      <div class="participante-card">
+      <div style="background: #1a2322; border: 2px solid #283735; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
           <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px; border-bottom: 2px dashed #283735; padding-bottom: 12px;">
               <img src="{p.get('foto', '')}" style="width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 3px solid #00ad9d;">
               <div>
@@ -435,34 +464,43 @@ else:
     if semanas:
       cols = st.columns(min(len(semanas), 4))
       idx = 0
-      for semana_num, dados_semana in sorted(
+      for semana_num, lista_marcos in sorted(
           semanas.items(), key=lambda x: int(x[0])
       ):
-        func_nome = dados_semana[0]
-        desc = dados_semana[1]
-        url_link = dados_semana[2] if len(dados_semana) > 2 else ""
-
-        icone = get_icone(func_nome)
-
-        link_html = (
-            f'<a href="{url_link}" target="_blank" class="link-btn">🔗 Ver'
-            " Detalhes</a>"
-            if url_link
-            else ""
-        )
-
         with cols[idx % len(cols)]:
           st.markdown(
               f"""
-                  <div style="background: #212e2c; border: 1px solid #283735; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-                      <div style="font-size: 10px; font-weight: bold; color: #DB8645; text-transform: uppercase;">Semana {semana_num}</div>
-                      <div style="margin: 4px 0;"><span class="marco-selo">{icone} {func_nome}</span></div>
-                      <div style="font-size: 12px; color: #d1c2a5; margin-top: 4px;">{desc}</div>
-                      {link_html}
-                  </div>
-                  """,
+              <div style="background: #212e2c; border: 1px solid #283735; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                  <div style="font-size: 10px; font-weight: bold; color: #DB8645; text-transform: uppercase; margin-bottom: 6px;">Semana {semana_num}</div>
+              """,
               unsafe_allow_html=True,
           )
+
+          for dados_semana in lista_marcos:
+            func_nome = dados_semana[0]
+            desc = dados_semana[1]
+            url_link = dados_semana[2] if len(dados_semana) > 2 else ""
+            icone = get_icone(func_nome)
+
+            link_html = (
+                f'<a href="{url_link}" target="_blank" class="link-btn">🔗 Ver'
+                " Detalhes</a>"
+                if url_link
+                else ""
+            )
+
+            st.markdown(
+                f"""
+                <div style="margin-bottom: 8px; border-bottom: 1px dotted rgba(255,255,255,0.1); padding-bottom: 6px;">
+                    <span class="marco-selo">{icone} {func_nome}</span>
+                    <div style="font-size: 12px; color: #d1c2a5; margin-top: 4px;">{desc}</div>
+                    {link_html}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+          st.markdown("</div>", unsafe_allow_html=True)
         idx += 1
     else:
       st.markdown(

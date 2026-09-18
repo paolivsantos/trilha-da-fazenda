@@ -122,9 +122,49 @@ aba = st.sidebar.radio(
     ["Visualizar Trilha", "👥 Gerenciar Elenco & Jornada", "⚙️ Configurações"],
 )
 
-# 1. ABA DE CONFIGURAÇÕES (ADMIN)
+# 1. ABA DE CONFIGURAÇÕES (ADMIN, BACKUP E VERSÃO)
 if aba == "⚙️ Configurações":
-  st.subheader("⚙️ Configurações Gerais da Temporada")
+  st.subheader("⚙️ Configurações Gerais e Versionamento")
+
+  # --- SEÇÃO DE BACKUP E SEGURANÇA DE DADOS ---
+  st.markdown("### 💾 Backup e Segurança dos Dados (JSON)")
+  col_bkp1, col_bkp2 = st.columns(2)
+
+  with col_bkp1:
+    st.write("Exporte todos os dados cadastrados para backup:")
+    if os.path.exists(ARQUIVO_DADOS):
+      with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+        json_str = f.read()
+      st.download_button(
+          label="📥 Baixar dados_trilha.json",
+          data=json_str,
+          file_name="dados_trilha.json",
+          mime="application/json",
+      )
+    else:
+      st.info("Nenhum dado gerado para download ainda.")
+
+  with col_bkp2:
+    st.write("Restaure dados através de um arquivo JSON de backup:")
+    arquivo_upload = st.file_uploader(
+        "Enviar arquivo JSON de backup", type=["json"]
+    )
+    if arquivo_upload is not None:
+      try:
+        dados_carregados = json.load(arquivo_upload)
+        if isinstance(dados_carregados, list):
+          st.session_state["participantes"] = dados_carregados
+          salvar_dados(ARQUIVO_DADOS, dados_carregados)
+          st.success("Dados restaurados com sucesso! Atualize a página.")
+        else:
+          st.error(
+              "O formato do arquivo JSON não é compatível (deve ser uma lista"
+              " de participantes)."
+          )
+      except Exception as e:
+        st.error(f"Erro ao ler o arquivo JSON: {e}")
+
+  st.markdown("---")
 
   # --- CONFIGURAÇÃO DE TOTAL DE SEMANAS ---
   st.markdown("### 📅 Duração da Temporada")
@@ -272,9 +312,10 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
   st.sidebar.subheader("➕ Novo Participante")
   with st.sidebar.form("form_elenco_novo", clear_on_submit=True):
     nome_peao = st.text_input("Nome do Participante")
-    status_peao = st.selectbox(
-        "Status Inicial", st.session_state["config_status"]
-    )
+
+    lista_status_cadastro = [""] + st.session_state["config_status"]
+    status_peao = st.selectbox("Status Inicial", lista_status_cadastro)
+
     foto_peao = st.text_input(
         "URL da Foto", placeholder="https://exemplo.com/foto.jpg"
     )
@@ -282,7 +323,11 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
     cadastrar_peao = st.form_submit_button("Cadastrar no Elenco")
 
     if cadastrar_peao:
-      if nome_peao:
+      if not nome_peao or not status_peao:
+        st.sidebar.warning(
+            "Preencha o **Nome** e selecione o **Status Inicial**."
+        )
+      else:
         lista = st.session_state["participantes"]
         existe = any(p["nome"].lower() == nome_peao.lower() for p in lista)
 
@@ -305,8 +350,6 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
           st.rerun()
         else:
           st.sidebar.error("Já existe um participante com esse nome.")
-      else:
-        st.sidebar.warning("O nome do participante é obrigatório.")
 
   participantes = st.session_state["participantes"]
 
@@ -317,7 +360,7 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
     )
   else:
     # --- CONTROLE DE ORDENAÇÃO ---
-    col_ord1, col_ord2, _ = st.columns([2, 3, 5])
+    col_ord1, _, _ = st.columns([2, 3, 5])
     with col_ord1:
       criterio_ordenacao = st.selectbox(
           "Ordenar Elenco por:",
@@ -336,35 +379,38 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Renderização em grade compacta de avatares
-    num_cols = min(len(participantes_exibicao), 10)
-    cols_elenco = st.columns(num_cols)
+    # --- RENDERIZAÇÃO EM GRADE ROBUSTA (EM BLOCOS DE 6 COLUNAS) ---
+    tamanho_linha = 6
+    for i in range(0, len(participantes_exibicao), tamanho_linha):
+      lote = participantes_exibicao[i : i + tamanho_linha]
+      cols_lote = st.columns(tamanho_linha)
 
-    for idx, p in enumerate(participantes_exibicao):
-      with cols_elenco[idx % num_cols]:
-        is_selecionado = (
-            st.session_state["peao_selecionado"] == p["nome"]
-        )
-        borda_cor = "#DB8645" if is_selecionado else "#00ad9d"
-        espessura = "4px" if is_selecionado else "2px"
+      for local_idx, p in enumerate(lote):
+        global_idx = i + local_idx
+        with cols_lote[local_idx]:
+          is_selecionado = (
+              st.session_state["peao_selecionado"] == p["nome"]
+          )
+          borda_cor = "#DB8645" if is_selecionado else "#00ad9d"
+          espessura = "4px" if is_selecionado else "2px"
 
-        st.markdown(
-            f"""
-            <div style="text-align: center; margin-bottom: 5px;" title="{p['nome']} ({p['status']})">
-                <img src="{p.get('foto', '')}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: {espessura} solid {borda_cor}; cursor: pointer;">
-                <div style="font-size: 10px; color: {'#DB8645' if is_selecionado else '#ffffff'}; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; margin: 0 auto;">{p['nome'].split()[0]}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+          st.markdown(
+              f"""
+              <div style="text-align: center; margin-bottom: 5px;" title="{p['nome']} ({p['status']})">
+                  <img src="{p.get('foto', '')}" style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: {espessura} solid {borda_cor}; cursor: pointer;">
+                  <div style="font-size: 11px; color: {'#DB8645' if is_selecionado else '#ffffff'}; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; margin: 0 auto;">{p['nome'].split()[0]}</div>
+              </div>
+              """,
+              unsafe_allow_html=True,
+          )
 
-        if st.button(
-            "Selecionar" if not is_selecionado else "Ativo",
-            key=f"btn_sel_{idx}",
-            use_container_width=True,
-        ):
-          st.session_state["peao_selecionado"] = p["nome"]
-          st.rerun()
+          if st.button(
+              "Selecionar" if not is_selecionado else "Ativo",
+              key=f"btn_sel_{global_idx}",
+              use_container_width=True,
+          ):
+            st.session_state["peao_selecionado"] = p["nome"]
+            st.rerun()
 
     # --- SEÇÃO INSERIDA LOGO ABAIXO QUANDO UM PEÃO É SELECIONADO ---
     if st.session_state["peao_selecionado"]:
@@ -391,23 +437,22 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
             atualizar_status = st.checkbox(
                 "Atualizar status geral do peão?", value=False
             )
+
+            lista_status_opcoes = [""] + st.session_state["config_status"]
             novo_status_peao = st.selectbox(
-                "Novo Status Geral", st.session_state["config_status"]
+                "Novo Status Geral", lista_status_opcoes
             )
 
             st.markdown("---")
             total_sem = int(st.session_state["config_total_semanas"])
-            
-            # Adicionando opção em branco no início da lista de semanas
+
             lista_semanas_opcoes = [""] + [
                 f"Semana {i}" for i in range(1, total_sem + 1)
             ]
-
             semana_selecionada_str = st.selectbox(
                 "Selecione a Semana", lista_semanas_opcoes
             )
 
-            # Adicionando opção em branco no início da lista de funções/selos
             lista_funcoes_opcoes = [""] + st.session_state["config_funcoes"]
             funcao = st.selectbox(
                 "Função / Tarefa (Selo)", lista_funcoes_opcoes
@@ -422,8 +467,9 @@ elif aba == "👥 Gerenciar Elenco & Jornada":
             salvar_marco = st.form_submit_button("Salvar Marco na Semana")
 
             if salvar_marco:
-              # Validação para impedir salvamento se os campos obrigatórios estiverem em branco
-              if not semana_selecionada_str or not funcao:
+              if atualizar_status and not novo_status_peao:
+                st.error("Por favor, selecione o **Novo Status Geral**.")
+              elif not semana_selecionada_str or not funcao:
                 st.error(
                     "Por favor, selecione a **Semana** e a **Função / Tarefa"
                     " (Selo)** antes de salvar."
